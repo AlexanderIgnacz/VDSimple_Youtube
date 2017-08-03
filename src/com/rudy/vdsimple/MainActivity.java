@@ -8,27 +8,27 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import android.accounts.Account;
-import android.accounts.OnAccountsUpdateListener;
-import android.app.Activity;
+import com.google.android.youtube.player.YouTubeBaseActivity;
+import com.google.android.youtube.player.YouTubeInitializationResult;
+import com.google.android.youtube.player.YouTubePlayer;
+import com.google.android.youtube.player.YouTubePlayer.Provider;
+import com.google.android.youtube.player.YouTubePlayerView;
+
 import android.app.Dialog;
 import android.app.DownloadManager;
 import android.app.DownloadManager.Request;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.provider.MediaStore.Video;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -38,9 +38,6 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.BaseAdapter;
@@ -49,8 +46,9 @@ import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.TextView.OnEditorActionListener;
+import android.widget.Toast;
 
-public class MainActivity extends Activity implements OnClickListener, OnItemClickListener {
+public class MainActivity extends YouTubeBaseActivity implements OnClickListener, OnItemClickListener, YouTubePlayer.OnInitializedListener {
 	static class VideoDownloadOption {
 		String videoId;
 		String type;
@@ -65,15 +63,6 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
 		String duration;
 		
 		String live;
-		
-		public String getVideoUrl() {
-			return "https://m.youtube.com/watch?v=" + videoId; 
-		}
-		public String getEmbedUrl() {
-			return "<html><style type='text/css'>.video-container { position: relative; padding-bottom: 56.25%; padding-top: 30px; height: 0; overflow: hidden; } " +
-				   ".video-container iframe, .video-container object, .video-container embed { position: absolute; top: 0; left: 0; width: 100%; height: 100%;}" + 
-				   "</style><body><div class='video-container'><iframe class=\"youtube-player\" type=\"text/html\" width=\"400\" height=\"300\" src=\"http://www.youtube.com/embed/" + videoId + "\" frameborder=\"0\"></div></body></html>";
-		}
 		
 		public String getDownloadUrl() {
 			return "http://api.soundcloud.com/tracks/159723640/stream?client_id=40ccfee680a844780a41fbe23ea89934";
@@ -105,8 +94,6 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
 		}
 	}
 	
-	
-	
 	ImageView mBtnSearch;
 	ImageView mBtnCancel;
 	
@@ -122,10 +109,18 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
 	ArrayList<VideoDownloadOption> mVideos = new ArrayList<VideoDownloadOption>();
 	VideoAdapter mAdapter;
 	
+	private final int RECOVERY_DIALOG_REQUEST = 1;
+	private final String strYoutubeKey = "AIzaSyB-vE_PNo2_1o65I2etL3aITlKRYYhzeFs";
+	
+	VideoDownloadOption current_video;
+	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
+		
+		YouTubePlayerView youTubeView = (YouTubePlayerView) findViewById(R.id.youtube_view);
+	    youTubeView.initialize(strYoutubeKey, this);
 		
 		mBtnSearch = (ImageView)findViewById(R.id.btn_search);
 		mBtnCancel = (ImageView)findViewById(R.id.btn_cancel);
@@ -225,7 +220,6 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
 		}
 	}
 	
-	
 	public void onSearched(ArrayList<VideoDownloadOption> videos, String pageToken) {
 		if(nextPageToken.isEmpty()) {
 			mVideos.clear();
@@ -246,37 +240,20 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
 	}
 	
 	
-	public void showVideo(final VideoDownloadOption video) {
+	public void showVideo() {
 		final Dialog dialog = new Dialog(this);
-    	dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+    		dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
 		dialog.setContentView(R.layout.download_dialog);
 		
-	    
 		// set the custom dialog components - text, image and button
 		TextView text = (TextView) dialog.findViewById(R.id.tv_title);
-		text.setText(video.title);
-
-		WebView displayYoutubeVideo = (WebView)dialog.findViewById(R.id.wv_video);
-		displayYoutubeVideo.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return false;
-            }
-        });
-        WebSettings webSettings = displayYoutubeVideo.getSettings();
-        webSettings.setJavaScriptEnabled(true);
-        if(!video.getEmbedUrl().isEmpty()) {
-        	displayYoutubeVideo.loadData(video.getEmbedUrl(), "text/html", "utf-8");
-        }
-        else {
-        	displayYoutubeVideo.loadUrl(video.getVideoUrl());
-        }
+		text.setText(current_video.title);
 		
 		TextView btnDownloadMp3 = (TextView) dialog.findViewById(R.id.tv_download_mp3);
         btnDownloadMp3.setOnClickListener(new OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				downloadFile(video.getDownloadUrl());
+				downloadFile(current_video.getDownloadUrl());
 			}
 		});
         
@@ -284,7 +261,7 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
         btnDownloadVideo.setOnClickListener(new OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				downloadFile(video.getDownloadUrl());
+				downloadFile(current_video.getDownloadUrl());
 			}
 		});
         
@@ -296,7 +273,6 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
 			}
 		});
 		
-        
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams();
 	    lp.copyFrom(dialog.getWindow().getAttributes());
 	    lp.width = WindowManager.LayoutParams.MATCH_PARENT;
@@ -304,7 +280,6 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
 		dialog.show();
 		dialog.getWindow().setAttributes(lp);
 	}
-	
 	
 	public void downloadFile(String url) {
 		DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
@@ -323,7 +298,7 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
         int offset = 0, limit = 0;
         
         private String getStringFromURL(String strURL) {
-        	StringBuffer chaine = new StringBuffer("");
+        		StringBuffer chaine = new StringBuffer("");
             try{
                 URL url = new URL(strURL);
                 HttpURLConnection connection = (HttpURLConnection)url.openConnection();
@@ -349,132 +324,102 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
         
         protected Boolean doInBackground(Object... as)
         {
-        	String keyword = as[0].toString();
-        	String pageToken = as[1].toString();
-//        	
-//        	try {
-//        		Thread.sleep(1000);
-//        	}
-//        	catch(Exception e) {
-//        		
-//        	}
-//        	
-        	listVideos = new ArrayList<VideoDownloadOption>();
-        	
-//        	VideoDownloadOption video = new VideoDownloadOption();
-//        	video.title = "Test title";
-//        	video.info = "Lucas";
-//        	video.length = "33:33";
-//        	video.url = "https://www.youtube.com/watch?v=2a4Uxdy9TQY";
-//        	video.downloadUrl = "http://api.soundcloud.com/tracks/159723640/stream?client_id=40ccfee680a844780a41fbe23ea89934";
-//        	listVideos.add(video);
-//        	
-//        	video = new VideoDownloadOption();
-//        	video.title = "Test title 2";
-//        	video.info = "Lucas";
-//        	video.length = "12:53";
-//        	video.url = "https://www.youtube.com/watch?v=2a4Uxdy9TQY";
-//        	video.downloadUrl = "http://api.soundcloud.com/tracks/159723640/stream?client_id=40ccfee680a844780a41fbe23ea89934";
-//        	listVideos.add(video);
-        	
-        	
-        	
-        	String strURL = "https://www.googleapis.com/youtube/v3/search?q=" + keyword + "&part=snippet&key=AIzaSyB-vE_PNo2_1o65I2etL3aITlKRYYhzeFs&maxResults=20";
-        	if(!pageToken.isEmpty()) {
-        		strURL = strURL + "&pageToken=" + pageToken;
-        	}
-        	this.pageToken = pageToken;
-        	
-        	String chaine = getStringFromURL(strURL);
-        	String videoIds = "";
+	        	String keyword = as[0].toString();
+	        	String pageToken = as[1].toString();
+	        	listVideos = new ArrayList<VideoDownloadOption>();
+	        	
+	        	String strURL = "https://www.googleapis.com/youtube/v3/search?q=" + keyword + "&part=snippet&key=AIzaSyB-vE_PNo2_1o65I2etL3aITlKRYYhzeFs&maxResults=20";
+	        	if(!pageToken.isEmpty()) {
+	        		strURL = strURL + "&pageToken=" + pageToken;
+	        	}
+	        	this.pageToken = pageToken;
+	        	
+	        	String chaine = getStringFromURL(strURL);
+	        	String videoIds = "";
             try {
-            	JSONObject jObject = new JSONObject(chaine);
-            	if(jObject.has("nextPageToken")) {
-            		nextPageToken = jObject.getString("nextPageToken");
-            	}
-            	
-            	if(jObject.has("items")) {
-            		JSONArray array = jObject.getJSONArray("items");
-            		for(int i = 0; i < array.length(); i++) {
-            			try {
-            				VideoDownloadOption video = new VideoDownloadOption();
-            				
-            				JSONObject item = array.getJSONObject(i);
-            				
-            				JSONObject id = item.getJSONObject("id");
-            				video.type = id.getString("kind");
-            				if(id.has("videoId")) {
-            					video.videoId = id.getString("videoId");
-            				}
-            				else if(id.has("channelId")) {
-            					//video.videoId = id.getString("channelId");
-            					//let's don't show channels
-            					continue;
-            				}
-            				
-            				
-            				
-            				JSONObject snippet = item.getJSONObject("snippet");
-            				video.date = snippet.getString("publishedAt");
-            				if(snippet.has("channelId")) {
-            					video.channelId = snippet.getString("channelId");
-            				}
-            				video.title = snippet.getString("title");
-            				video.description = snippet.getString("description");
-            				video.channelTitle = snippet.getString("channelTitle");
-            				video.live = snippet.getString("liveBroadcastContent");
-            				
-            				video.duration="??:??";
-            				
-            				listVideos.add(video);
-            				
-            				videoIds = videoIds + (videoIds.isEmpty() ? "" : ",") + video.videoId;
-            				
-            			} catch(Exception e) {
-            				e.printStackTrace();
-            			}
-            		}
-            	}
-            	
-            	//get durations
-                strURL = "https://www.googleapis.com/youtube/v3/videos?id=" + videoIds + "&part=contentDetails&key=AIzaSyB-vE_PNo2_1o65I2etL3aITlKRYYhzeFs";
-                String contentDetails = getStringFromURL(strURL);
-                
-                jObject = new JSONObject(contentDetails);
-                if(jObject.has("items")) {
-            		JSONArray array = jObject.getJSONArray("items");
-            		for(int i = 0; i < array.length(); i++) {
-            			JSONObject item = array.getJSONObject(i);
-        				
-            			try {
-            				JSONObject detail = item.getJSONObject("contentDetails");
-            				listVideos.get(i).setISO8601Duration(detail.getString("duration"));
-            			}
-            			catch(Exception e) {
-            				e.printStackTrace();
-            			}
-            		}
-                }
-            }
-            catch(Exception e) {
-            	e.printStackTrace();
-            	return false;
-            }
-            
+	            	JSONObject jObject = new JSONObject(chaine);
+	            	if(jObject.has("nextPageToken")) {
+	            		nextPageToken = jObject.getString("nextPageToken");
+	            	}
+	            	
+	            	if(jObject.has("items")) {
+	            		JSONArray array = jObject.getJSONArray("items");
+	            		for(int i = 0; i < array.length(); i++) {
+	            			try {
+	            				VideoDownloadOption video = new VideoDownloadOption();
+	            				
+	            				JSONObject item = array.getJSONObject(i);
+	            				
+	            				JSONObject id = item.getJSONObject("id");
+	            				video.type = id.getString("kind");
+	            				if(id.has("videoId")) {
+	            					video.videoId = id.getString("videoId");
+	            				}
+	            				else if(id.has("channelId")) {
+	            					//video.videoId = id.getString("channelId");
+	            					//let's don't show channels
+	            					continue;
+	            				}
+	
+	            				JSONObject snippet = item.getJSONObject("snippet");
+	            				video.date = snippet.getString("publishedAt");
+	            				if(snippet.has("channelId")) {
+	            					video.channelId = snippet.getString("channelId");
+	            				}
+	            				video.title = snippet.getString("title");
+	            				video.description = snippet.getString("description");
+	            				video.channelTitle = snippet.getString("channelTitle");
+	            				video.live = snippet.getString("liveBroadcastContent");
+	            				
+	            				video.duration="??:??";
+	            				
+	            				listVideos.add(video);
+	            				
+	            				videoIds = videoIds + (videoIds.isEmpty() ? "" : ",") + video.videoId;
+	            				
+	            			} catch(Exception e) {
+	            				e.printStackTrace();
+	            			}
+	            		}
+	            	}
+	            	
+	            	//get durations
+	            strURL = "https://www.googleapis.com/youtube/v3/videos?id=" + videoIds + "&part=contentDetails&key=AIzaSyB-vE_PNo2_1o65I2etL3aITlKRYYhzeFs";
+	            String contentDetails = getStringFromURL(strURL);
+	            
+	            jObject = new JSONObject(contentDetails);
+	            if(jObject.has("items")) {
+	            		JSONArray array = jObject.getJSONArray("items");
+	            		for(int i = 0; i < array.length(); i++) {
+	            			JSONObject item = array.getJSONObject(i);
+	        				
+	            			try {
+	            				JSONObject detail = item.getJSONObject("contentDetails");
+	            				listVideos.get(i).setISO8601Duration(detail.getString("duration"));
+	            			}
+	            			catch(Exception e) {
+	            				e.printStackTrace();
+	            			}
+	            		}
+	            	}
+	        } catch(Exception e) {
+            		e.printStackTrace();
+            		return false;
+            }            
             return true;
         }
 
         protected void onPostExecute(Boolean result)
         {
-        	super.onPostExecute(result);
-        	if(mLoadingDialog != null) {
-        		mLoadingDialog.dismiss();
-        		mLoadingDialog = null;
-        	}
-        	if(result.booleanValue()) {
-        		//result
-        		onSearched(listVideos, nextPageToken);
-        	}
+	        	super.onPostExecute(result);
+	        	if(mLoadingDialog != null) {
+	        		mLoadingDialog.dismiss();
+	        		mLoadingDialog = null;
+	        	}
+	        	if(result.booleanValue()) {
+	        		//result
+	        		onSearched(listVideos, nextPageToken);
+	        	}
         }
 
         protected void onPreExecute()
@@ -484,9 +429,6 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
             mLoadingDialog.setCancelable(false);
         }
     }
-	
-
-	
 	
 	public class VideoAdapter extends BaseAdapter{
 		private List<VideoDownloadOption> array;
@@ -544,13 +486,41 @@ public class MainActivity extends Activity implements OnClickListener, OnItemCli
 		}
 	}
 
-
 	@Override
 	public void onItemClick(AdapterView<?> arg0, View arg1, int position, long id) {
 		if(position < mVideos.size()) {
-			VideoDownloadOption video = mVideos.get(position);
-			showVideo(video);
+			current_video = mVideos.get(position);
+			showVideo();
 		}
 	}
+
+	@Override
+	public void onInitializationFailure(Provider provider, YouTubeInitializationResult errorReason) {
+		// TODO Auto-generated method stub
+		if (errorReason.isUserRecoverableError()) {
+		      errorReason.getErrorDialog(this, RECOVERY_DIALOG_REQUEST).show();
+	    } else {
+	      String errorMessage = String.format(getString(R.string.error_player), errorReason.toString());
+	      Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show();
+	    }
+	}
 	
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+		if (requestCode == RECOVERY_DIALOG_REQUEST) {
+		    // Retry initialization if user performed a recovery action
+			getYouTubePlayerProvider().initialize(strYoutubeKey, this);
+	    }
+	}
+	
+	protected YouTubePlayer.Provider getYouTubePlayerProvider() {
+		return (YouTubePlayerView) findViewById(R.id.youtube_view);
+	}
+
+	@Override
+	public void onInitializationSuccess(YouTubePlayer.Provider provider, YouTubePlayer player, boolean wasRestored) {
+		if (!wasRestored) {
+			player.cueVideo(current_video.videoId);
+     	}
+	}
 }
