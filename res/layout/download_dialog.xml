@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
+    android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="vertical" 
+    android:orientation="vertical"
+    android:padding="5dp"
     android:background="@android:color/white">
 
     <TextView
         android:id="@+id/tv_title"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Video Title"
         android:textColor="@android:color/black"
@@ -18,12 +19,12 @@
         android:ellipsize="end"
         android:textAppearance="?android:attr/textAppearanceLarge" />
     <FrameLayout
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="230dp" >
     	
 	<com.google.android.youtube.player.YouTubePlayerView
 		android:id="@+id/youtube_view"
-		android:layout_width="match_parent"
+		android:layout_width="wrap_content"
 		android:layout_height="match_parent"/>
 	        
     </FrameLayout>
