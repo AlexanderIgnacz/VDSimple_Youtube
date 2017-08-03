@@ -12,19 +12,10 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import com.google.android.youtube.player.YouTubeBaseActivity;
-import com.google.android.youtube.player.YouTubeInitializationResult;
-import com.google.android.youtube.player.YouTubePlayer;
-import com.google.android.youtube.player.YouTubePlayer.Provider;
-import com.google.android.youtube.player.YouTubePlayerView;
-
-import android.app.Dialog;
-import android.app.DownloadManager;
-import android.app.DownloadManager.Request;
+import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.Editable;
@@ -34,8 +25,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
-import android.view.Window;
-import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
@@ -46,9 +35,8 @@ import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.TextView.OnEditorActionListener;
-import android.widget.Toast;
 
-public class MainActivity extends YouTubeBaseActivity implements OnClickListener, OnItemClickListener, YouTubePlayer.OnInitializedListener {
+public class MainActivity extends Activity implements OnClickListener, OnItemClickListener{
 	static class VideoDownloadOption {
 		String videoId;
 		String type;
@@ -109,18 +97,10 @@ public class MainActivity extends YouTubeBaseActivity implements OnClickListener
 	ArrayList<VideoDownloadOption> mVideos = new ArrayList<VideoDownloadOption>();
 	VideoAdapter mAdapter;
 	
-	private final int RECOVERY_DIALOG_REQUEST = 1;
-	private final String strYoutubeKey = "AIzaSyB-vE_PNo2_1o65I2etL3aITlKRYYhzeFs";
-	
-	VideoDownloadOption current_video;
-	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
-		
-		YouTubePlayerView youTubeView = (YouTubePlayerView) findViewById(R.id.youtube_view);
-	    youTubeView.initialize(strYoutubeKey, this);
 		
 		mBtnSearch = (ImageView)findViewById(R.id.btn_search);
 		mBtnCancel = (ImageView)findViewById(R.id.btn_cancel);
@@ -240,52 +220,37 @@ public class MainActivity extends YouTubeBaseActivity implements OnClickListener
 	}
 	
 	
-	public void showVideo() {
-		final Dialog dialog = new Dialog(this);
-    		dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-		dialog.setContentView(R.layout.download_dialog);
+	public void showVideo(VideoDownloadOption video) {
+		Intent intent = new Intent(this, YoutubePlayerDialog.class);
 		
-		// set the custom dialog components - text, image and button
-		TextView text = (TextView) dialog.findViewById(R.id.tv_title);
-		text.setText(current_video.title);
+		intent.putExtra("video_id", video.videoId);
+		intent.putExtra("video_title", video.title);
+		intent.putExtra("video_download_url", video.getDownloadUrl());
 		
-		TextView btnDownloadMp3 = (TextView) dialog.findViewById(R.id.tv_download_mp3);
-        btnDownloadMp3.setOnClickListener(new OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				downloadFile(current_video.getDownloadUrl());
-			}
-		});
-        
-        TextView btnDownloadVideo = (TextView) dialog.findViewById(R.id.tv_download_video);
-        btnDownloadVideo.setOnClickListener(new OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				downloadFile(current_video.getDownloadUrl());
-			}
-		});
-        
-        TextView btnClose = (TextView) dialog.findViewById(R.id.tv_cancel);
-        btnClose.setOnClickListener(new OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				dialog.dismiss();
-			}
-		});
-		
-        WindowManager.LayoutParams lp = new WindowManager.LayoutParams();
-	    lp.copyFrom(dialog.getWindow().getAttributes());
-	    lp.width = WindowManager.LayoutParams.MATCH_PARENT;
-	    
-		dialog.show();
-		dialog.getWindow().setAttributes(lp);
+    		startActivityForResult(intent, 1);
 	}
 	
-	public void downloadFile(String url) {
-		DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-        Request request = new Request(
-                Uri.parse(url));
-        dm.enqueue(request);
+	@Override
+	public void onActivityResult(int requestCode, int resultCode, Intent data) {
+		// TODO Auto-generated method stub
+		if (requestCode == 1){
+			if (resultCode == Activity.RESULT_OK){
+//				if (mMainAdapter == null) {
+//					mMainAdapter = new TrackArrayAdaptor(getMainActivity(), result_tracklist);
+//
+//					mMainAdapter.setLoadMoreListener(new OnLoadMoreListener() {
+//						@Override
+//						public void onLoadMore() {
+//							search(null, true); // null means load more
+//						}
+//					});
+//					mVideoList.setAdapter(mMainAdapter);
+//				}
+//				mMainAdapter.setShowLoadMore(true);
+//				mMainAdapter.notifyDataSetChanged();
+			}
+		}
+//		super.onActivityResult(requestCode, resultCode, data);
 	}
 	
 	public class SearchVideos extends AsyncTask<Object, Void, Boolean>
@@ -489,38 +454,7 @@ public class MainActivity extends YouTubeBaseActivity implements OnClickListener
 	@Override
 	public void onItemClick(AdapterView<?> arg0, View arg1, int position, long id) {
 		if(position < mVideos.size()) {
-			current_video = mVideos.get(position);
-			showVideo();
+			showVideo(mVideos.get(position));
 		}
-	}
-
-	@Override
-	public void onInitializationFailure(Provider provider, YouTubeInitializationResult errorReason) {
-		// TODO Auto-generated method stub
-		if (errorReason.isUserRecoverableError()) {
-		      errorReason.getErrorDialog(this, RECOVERY_DIALOG_REQUEST).show();
-	    } else {
-	      String errorMessage = String.format(getString(R.string.error_player), errorReason.toString());
-	      Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show();
-	    }
-	}
-	
-	@Override
-	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-		if (requestCode == RECOVERY_DIALOG_REQUEST) {
-		    // Retry initialization if user performed a recovery action
-			getYouTubePlayerProvider().initialize(strYoutubeKey, this);
-	    }
-	}
-	
-	protected YouTubePlayer.Provider getYouTubePlayerProvider() {
-		return (YouTubePlayerView) findViewById(R.id.youtube_view);
-	}
-
-	@Override
-	public void onInitializationSuccess(YouTubePlayer.Provider provider, YouTubePlayer player, boolean wasRestored) {
-		if (!wasRestored) {
-			player.cueVideo(current_video.videoId);
-     	}
 	}
 }
